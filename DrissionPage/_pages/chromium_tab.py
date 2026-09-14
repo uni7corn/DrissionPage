@@ -135,10 +135,11 @@ class ChromiumTab(ChromiumBase, SessionPage):
         if self.mode == 'd':
             self.cookies_to_session()
         if timeout is None:
-            kwargs['timeout'] = self.timeouts.page_load
+            timeout = self.timeouts.page_load
         if self._session is None:
             self._create_session()
-        return self._mode_obj.post(url=url, retry=retry, interval=interval, raise_err=raise_err, **kwargs)
+        return self._mode_obj.post(url=url, retry=retry, interval=interval, raise_err=raise_err, timeout=timeout,
+                                   **kwargs)
 
     def ele(self, locator, index=1, timeout=None):
         return self._mode_obj.ele(locator, index=index, timeout=timeout)

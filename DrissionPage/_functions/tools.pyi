@@ -27,8 +27,7 @@ class PortFinder(object):
         """
         ...
 
-    @staticmethod
-    def get_port(scope: Tuple[int, int] = None) -> int:
+    def get_port(self, scope: Tuple[int, int] = None) -> int:
         """查找一个可用端口
         :param scope: 指定端口范围，不含最后的数字，为None则使用[9600-59600)
         :return: 可以使用的端口

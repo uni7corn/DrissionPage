@@ -994,14 +994,14 @@ def do_find_any(ele: ChromiumElement,
     ...
 
 
-def do_find_sr_any(ele:ShadowRoot,
-                   loc:str,
-                   xpath:str,
-                   cdp:str,
-                   css:str,
-                   arg:str,
-                   nid:int,
-                   ind:Optional[int]) -> Union[ChromiumElement, ChromiumElementsList, None]:
+def do_find_sr_any(ele: ShadowRoot,
+                   loc: str,
+                   xpath: str,
+                   cdp: str,
+                   css: str,
+                   arg: str,
+                   nid: int,
+                   ind: Optional[int]) -> Union[ChromiumElement, ChromiumElementsList, None]:
     """执行在shadow root中查找元素，先按xpath或css selector查找，找不到用文本查找
     :param ele: 在这个元素中查找
     :param loc: 定位符
@@ -1019,12 +1019,12 @@ def do_find_sr_any(ele:ShadowRoot,
 def do_find_ax(page: Union[ChromiumBase, ChromiumTab, ChromiumFrame],
                bid: int,
                args: dict,
-               index: Optional[int]) -> Union[ChromiumElement, ChromiumElementsList, None]:
+               ind: Optional[int]) -> Union[ChromiumElement, ChromiumElementsList, None]:
     """执行用xpath在元素中查找元素
     :param page: 元素所在页面对象
     :param bid: 在此元素中查找
     :param args: {'name': '***', 'role': '***'}
-    :param index: 第几个结果，从1开始，可传入负数获取倒数第几个，为None返回所有
+    :param ind: 第几个结果，从1开始，可传入负数获取倒数第几个，为None返回所有
     :return: 元素或元素列表，找不到时返回None
     """
     ...
@@ -1143,6 +1143,12 @@ def parse_js_result(page: Union[ChromiumTab, ChromiumFrame],
 
 def convert_argument(arg: Any) -> dict:
     """把参数转换成js能够接收的形式"""
+    ...
+
+
+def make_ele(page: Union[ChromiumTab, ChromiumFrame, ChromiumBase],
+             obj_id: Optional[str],
+             node: dict) -> ChromiumElement:
     ...
 
 

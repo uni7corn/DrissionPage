@@ -16,7 +16,7 @@ from requests.structures import CaseInsensitiveDict
 
 from .._functions.settings import Settings as _S
 from .._functions.tools import wait_until
-from ..errors import WaitTimeoutError
+from ..errors import PageDisconnectedError, WaitTimeoutError
 
 
 class BaseListener(object):
@@ -49,17 +49,15 @@ class BaseListener(object):
         return self._res_type_setter
 
     def set_urls(self, urls=True, is_regex=False):
-        if urls is not None:
-            if not isinstance(urls, (str, list, tuple, set)) and urls is not True:
-                raise ValueError(_S._lang.joinn(_S._lang.INCORRECT_TYPE_, 'urls',
-                                                ALLOW_TYPE='str, list, tuple, set, True', CURR_TYPE=type(urls)))
-            if urls is True:
-                self._urls = True
-            else:
-                self._urls = {urls} if isinstance(urls, str) else set(urls)
+        if not isinstance(urls, (str, list, tuple, set)) and urls is not True:
+            raise ValueError(_S._lang.joinn(_S._lang.INCORRECT_TYPE_, 'urls',
+                                            ALLOW_TYPE='str, list, tuple, set, True', CURR_TYPE=type(urls)))
+        if urls is True:
+            self._urls = True
+        else:
+            self._urls = {urls} if isinstance(urls, str) else set(urls)
 
-        if is_regex is not None:
-            self._is_regex = is_regex
+        self._is_regex = is_regex
 
     def resume(self):
         self._init_callback()
@@ -79,10 +77,8 @@ class Listener(BaseListener):
 
         self.tab_id = None
 
-    def start(self, urls=None, is_regex=None):
-        if urls is not None and is_regex is None:
-            is_regex = False
-        if urls or is_regex is not None:
+    def start(self, urls=None, is_regex=False):
+        if urls is not None:
             self.set_urls(urls, is_regex)
         self.clear()
         if not self.listening:
@@ -96,7 +92,9 @@ class Listener(BaseListener):
         if not timeout:
             while self._owner._messenger_running and self.listening and self._caught.qsize() < count:
                 sleep(.01)
-            success = self._owner._messenger_running
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
+            success = True
 
         else:
             end = perf_counter() + timeout
@@ -105,6 +103,8 @@ class Listener(BaseListener):
                     success = True
                     break
                 sleep(.01)
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
 
         if success:
             if count == 1:
@@ -125,20 +125,24 @@ class Listener(BaseListener):
         success = False
 
         if not timeout:
-            while (self._owner.browser.listen.listening and
+            while (self._owner.browser.listen.listening and self._owner._messenger_running and
                    (self._owner.tab_id not in self._owner.browser.listen._caught or
                     self._owner.browser.listen._caught[self._owner.tab_id].qsize() < count)):
                 sleep(.01)
-            success = self._owner._messenger_running
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
+            success = True
 
         else:
             end = perf_counter() + timeout
-            while self._owner.browser.listen.listening and perf_counter() < end:
+            while self._owner.browser.listen.listening and self._owner._messenger_running and perf_counter() < end:
                 if (self._owner.tab_id in self._owner.browser.listen._caught and
                         self._owner.browser.listen._caught[self._owner.tab_id].qsize() >= count):
                     success = True
                     break
                 sleep(.01)
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
 
         if success:
             if count == 1:
@@ -166,7 +170,9 @@ class Listener(BaseListener):
                         caught += gap
                         if caught >= count:
                             return None
-                sleep(.03)
+                sleep(.01)
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
 
         else:
             end = perf_counter() + timeout
@@ -178,7 +184,9 @@ class Listener(BaseListener):
                         caught += gap
                         if caught >= count:
                             return None
-                sleep(.03)
+                sleep(.01)
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
             return False
 
     def browser_steps(self, count=None, timeout=None, gap=1):
@@ -188,7 +196,7 @@ class Listener(BaseListener):
         _caught = self._owner.browser.listen._caught
         tid = self._owner.tab_id
         if timeout is None:
-            while self._owner.browser.listen.listening:
+            while self._owner.browser.listen.listening and self._owner._messenger_running:
                 if tid in _caught and _caught[tid].qsize() >= gap:
                     yield _caught[tid].get_nowait() if gap == 1 else [_caught[tid].get_nowait() for _ in range(gap)]
                     if count:
@@ -196,10 +204,12 @@ class Listener(BaseListener):
                         if caught >= count:
                             return None
                 sleep(.01)
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
 
         else:
             end = perf_counter() + timeout
-            while self._owner.browser.listen.listening and perf_counter() < end:
+            while self._owner.browser.listen.listening and self._owner._messenger_running and perf_counter() < end:
                 if tid in _caught and _caught[tid].qsize() >= gap:
                     yield _caught[tid].get_nowait() if gap == 1 else [_caught[tid].get_nowait() for _ in range(gap)]
                     end = perf_counter() + timeout
@@ -208,6 +218,8 @@ class Listener(BaseListener):
                         if caught >= count:
                             return None
                 sleep(.01)
+            if not self._owner._messenger_running:
+                raise PageDisconnectedError
             return False
 
     def stop(self):
@@ -316,7 +328,7 @@ class Listener(BaseListener):
             self._caught.put(p)
 
     def _webSocketCreated(self, **kwargs):
-        target = in_targets(self, kwargs['url'], 'GET', 'WebSocket')
+        target = is_target(self, kwargs['url'], 'GET', 'WebSocket')
         if target:
             self._ws_info[kwargs['requestId']] = WebSocketConnectInfo(self._owner, target, kwargs['requestId'],
                                                                       kwargs['url'], kwargs.get('initiator'))
@@ -337,7 +349,7 @@ class Listener(BaseListener):
     def _requestWillBeSent(self, **kwargs):
         self._running_requests += 1
         p = False
-        target = in_targets(self, kwargs['request']['url'], kwargs['request']['method'], kwargs.get('type', ''))
+        target = is_target(self, kwargs['request']['url'], kwargs['request']['method'], kwargs.get('type', ''))
         if target:
             self._running_targets += 1
             rid = kwargs['requestId']
@@ -433,6 +445,7 @@ class Listener(BaseListener):
                     self._extra_info_ids.pop(kwargs['requestId'], None)
 
         self._request_ids.pop(r_id, None)
+        return packet
 
     def _loading_failed(self, **kwargs):
         packet = self._loading_failed_sse(**kwargs)
@@ -447,10 +460,8 @@ class BrowserListener(BaseListener):
         self._caught = {}
         self._request_ids = {}
 
-    def start(self, urls=None, is_regex=None):
-        if urls is not None and is_regex is None:
-            is_regex = False
-        if urls or is_regex is not None:
+    def start(self, urls=None, is_regex=False):
+        if urls is not None:
             self.set_urls(urls, is_regex)
         self.clear()
         if not self.listening:
@@ -496,34 +507,36 @@ class BrowserListener(BaseListener):
         self._owner._set_callback('Fetch.requestPaused', self._onRequestPaused)
 
     def _onRequestPaused(self, **kwargs):
-        target = in_targets(self, kwargs['request']['url'], kwargs['request']['method'], kwargs['resourceType'])
+        target = is_target(self, kwargs['request']['url'], kwargs['request']['method'], kwargs['resourceType'])
         if not target:
             self._owner._run_cdp('Fetch.continueResponse', requestId=kwargs['requestId'], _ignore=True, _timeout=0)
             return
 
         tab_id = self._owner._tabs._frames.get(kwargs['frameId'])
-        while not tab_id:
+        times = 0
+        while not tab_id and times < 50:
             tab_id = self._owner._tabs._frames.get(kwargs['frameId'])
-            print('等待')
             sleep(.001)
+            times += 1
 
-        body = self._owner._run_cdp('Fetch.getResponseBody', requestId=kwargs['requestId'], _ignore=True)
-        kwargs['body'] = None if 'error' in body else body
-        self._owner._run_cdp('Fetch.continueResponse', requestId=kwargs['requestId'], _ignore=True, _timeout=0)
-        self._caught.setdefault(tab_id, Queue(maxsize=0)).put(BrowserDataPacket(tab_id, target, kwargs))
+        if tab_id:
+            body = self._owner._run_cdp('Fetch.getResponseBody', requestId=kwargs['requestId'], _ignore=True)
+            kwargs['body'] = None if 'error' in body else body
+            self._owner._run_cdp('Fetch.continueResponse', requestId=kwargs['requestId'], _ignore=True, _timeout=0)
+            self._caught.setdefault(tab_id, Queue(maxsize=0)).put(BrowserDataPacket(tab_id, target, kwargs))
 
 
-def in_targets(listener, url, method, res_type):
+def is_target(listener, url, method, res_type):
     if listener._urls is True:
         if ((listener._method is True or method in listener._method)
                 and (listener._res_type is True or res_type in listener._res_type)):
-            return True, method, res_type
+            return listener._urls, listener._method, listener._res_type
     else:
         for u in listener._urls:
             if (((listener._is_regex and search(u, url)) or (not listener._is_regex and u in url))
                     and (listener._method is True or method in listener._method)
                     and (listener._res_type is True or res_type in listener._res_type)):
-                return u, method, res_type
+                return listener._urls, listener._method, listener._res_type
     return False
 
 
@@ -679,7 +692,7 @@ class Request(object):
 
     @property
     def timestamp(self):
-        return self._request['timestamp']
+        return self._data_packet._raw_request['timestamp']
 
 
 class Response(object):

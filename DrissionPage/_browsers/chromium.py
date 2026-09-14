@@ -265,7 +265,7 @@ class Chromium(Messenger):
         if context_id:
             kwargs['browserContextId'] = context_id
 
-        if self.states.is_incognito or self.states.is_guest and is_browser:
+        if is_browser and (self.states.is_incognito or self.states.is_guest):
             return _new_tab_by_js(self, url, new_window, context_id)
         else:
             try:
@@ -461,6 +461,10 @@ class Chromium(Messenger):
             self._tabs.add(sid, tab_id, context_id=cid, opener=kwargs['targetInfo'].get('openerId'))
             self._tabs._tab_first_session[tab_id] = sid
             self._tabs.set_newest_tab(cid, tab_id)
+        elif kwargs['targetInfo']['type'] == 'iframe':
+            self._tabs.add_frame(kwargs['targetInfo']['targetId'],
+                                 self._tabs._frames.get(kwargs['targetInfo']['parentFrameId'],
+                                                        kwargs['targetInfo']['parentFrameId']))
 
     def _onTargetDestroyed(self, **kwargs):
         tab_id = kwargs['targetId']
@@ -697,7 +701,7 @@ class Tabs(object):
         self.remove_session(session_id)
 
     def stop_target(self, target_id):
-        for session_id in self._targets.get(target_id, set()):
+        for session_id in set(self._targets.get(target_id, set())):
             self.stop_session(session_id)
         self.remove_target(target_id)
 
@@ -707,6 +711,9 @@ class Tabs(object):
         self._objects.clear()
         self._openers.clear()
         self._frames.clear()
+        self._contexts.clear()
+        self._context_newest_tab.clear()
+        self._proxies.clear()
         self._tab_first_session.clear()
 
 

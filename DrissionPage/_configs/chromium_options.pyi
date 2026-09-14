@@ -414,6 +414,6 @@ class ChromiumOptions(object):
         """保存当前配置到默认ini文件"""
         ...
 
-    def remove_test_type(self) -> ChromiumOptions:
+    def close_cross_origin(self) -> ChromiumOptions:
         """移除测试参数"""
         ...

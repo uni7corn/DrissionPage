@@ -43,11 +43,10 @@ def set_flags(opt: ChromiumOptions) -> None:
     ...
 
 
-def test_connect(ip: str, port: Union[int, str], timeout: float = 30) -> bool:
+def test_connect(ip: str, port: Union[int, str]) -> bool:
     """测试浏览器是否可用
     :param ip: 浏览器ip
     :param port: 浏览器端口
-    :param timeout: 超时时间（秒）
     :return: None
     """
     ...

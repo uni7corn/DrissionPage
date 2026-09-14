@@ -30,8 +30,6 @@ class BaseParser(object):
     _type: str
     timeout: float
 
-    def __call__(self, locator: Union[Tuple[str, str], str], index: int = 1): ...
-
     def ele(self,
             locator: Union[Tuple[str, str], str, BaseElement],
             index: int = 1,

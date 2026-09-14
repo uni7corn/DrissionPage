@@ -77,11 +77,17 @@ class Driver(object):
         """
         ...
 
-    def run(self, _method: str, _timeout: Optional[float] = None, _session_id: Optional[str] = None, **kwargs) -> dict:
+    def run(self,
+            _method: str,
+            _timeout: Optional[float] = None,
+            _session_id: Optional[str] = None,
+            _debug: bool = False,
+            **kwargs) -> dict:
         """执行cdp方法
         :param _method: cdp方法名
         :param _timeout: 超时时间
         :param _session_id: session id
+        :param _debug: 是否debug模式
         :param kwargs: cdp参数
         :return: 执行结果
         """

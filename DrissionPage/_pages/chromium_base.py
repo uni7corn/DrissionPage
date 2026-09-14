@@ -16,7 +16,7 @@ from DrissionRecord.tools import make_valid_name
 
 from .._base.base import BasePage, Messenger
 from .._configs.session_options import SessionOptions
-from .._elements.chromium_element import run_js, make_chromium_eles, find_by_ax, wait_for_ele
+from .._elements.chromium_element import run_js, make_chromium_eles, find_by_ax, wait_for_ele, make_ele
 from .._elements.none_element import NoneElement
 from .._elements.session_element import make_session_ele
 from .._functions.cookies import CookiesList
@@ -465,6 +465,7 @@ class ChromiumBase(BasePage, Messenger):
         self.wait.doc_loaded()
 
         if mode == 'ax':
+            self._enable_domain('Accessibility')
             bid = self._run_cdp('Accessibility.getRootAXNode', frameId=self._frame_id)['node']['backendDOMNodeId']
             return find_by_ax(self, bid, loc, index, timeout)
         elif mode == 'any':
@@ -913,36 +914,83 @@ def do_find_syntax(page, loc, ind):
     searchId = r.get('searchId')
     resultCount = r.get('resultCount')
     if not resultCount or (ind and resultCount < abs(ind)):
-        page._run_cdp('DOM.discardSearchResults', searchId=searchId, _timeout=0, _ignore=True)
-        return None
-
-    r = page._run_cdp('DOM.getSearchResults', searchId=searchId, _ignore=True,
-                      fromIndex=0, toIndex=resultCount).get('nodeIds')
-    if not r or not r[0]:
-        return None
+        return discardSearchResults(page, searchId)
 
     if ind is None:
-        r = make_chromium_eles(page, _ids=r, index=None, id_type='node_id', ele_only=True)
-
-    else:
-        eles = []
-        got = 0
-        for i in r:
-            n = page._run_cdp('DOM.describeNode', _ignore=True, nodeId=i).get('node')
-            if not n:
-                page._run_cdp('DOM.discardSearchResults', searchId=searchId, _timeout=0, _ignore=True)
-                return None
-            if n['nodeName'] not in ('#text', '#comment'):
-                eles.append(i)
-                got += 1
-                if (0 < ind == got) or (not ind and got == 1):
-                    break
-        if not got:
+        r = page._run_cdp('DOM.getSearchResults', searchId=searchId, _ignore=True,
+                          fromIndex=0, toIndex=resultCount).get('nodeIds')
+        discardSearchResults(page, searchId)
+        if not r or not r[0]:
             return None
-        r = make_chromium_eles(page, _ids=eles, index=ind, id_type='node_id')
+        r = make_chromium_eles(page, _ids=r, index=None, id_type='node_id', ele_only=True)
+        return None if r is False else r
 
+    if ind > 0:
+        begin = 0
+        end = ind
+        negative = None
+    else:
+        begin = resultCount + ind
+        end = resultCount
+        negative = -1
+    ind = abs(ind)
+
+    r = page._run_cdp('DOM.getSearchResults', searchId=searchId, _ignore=True,
+                      fromIndex=begin, toIndex=end).get('nodeIds')
+    if not r or not r[0]:
+        return discardSearchResults(page, searchId)
+
+    got = 0
+    n = None
+    for i in r[::negative]:
+        n = page._run_cdp('DOM.describeNode', nodeId=i, _ignore=True)
+        if 'node' not in n:
+            return discardSearchResults(page, searchId)
+        if n['node']['nodeName'] not in ('#text', '#comment'):
+            got += 1
+
+    if got == ind:
+        r = make_ele(page, None, n)
+        discardSearchResults(page, searchId)
+        return r
+
+    if negative:
+        to = min(begin, resultCount)
+        begin = max(0, begin - 11)
+    else:
+        begin = ind
+        to = min(begin + 10, resultCount)
+    while True:
+        r = page._run_cdp('DOM.getSearchResults', searchId=searchId, _ignore=True,
+                          fromIndex=begin, toIndex=to).get('nodeIds')
+        if not r or not r[0]:
+            return discardSearchResults(page, searchId)
+        for i in r[::negative]:
+            n = page._run_cdp('DOM.describeNode', nodeId=i, _ignore=True)
+            if 'node' not in n:
+                return discardSearchResults(page, searchId)
+            if n['node']['nodeName'] not in ('#text', '#comment'):
+                got += 1
+            if got == ind:
+                r = make_ele(page, None, n)
+                discardSearchResults(page, searchId)
+                return r
+
+        if negative:
+            if begin == 0:
+                return None
+            to = min(begin - 1, resultCount)
+            begin = max(0, begin - 11)
+        else:
+            begin = to + 1
+            if begin > resultCount:
+                return None
+            to = min(begin + 10, resultCount)
+
+
+def discardSearchResults(page, searchId):
     page._run_cdp('DOM.discardSearchResults', searchId=searchId, _timeout=0, _ignore=True)
-    return None if r is False else r
+    return None
 
 
 def find_by_syntax(page, loc, index, timeout):

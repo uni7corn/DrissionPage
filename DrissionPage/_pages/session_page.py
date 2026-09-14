@@ -6,7 +6,7 @@
 @Copyright: (c) 2020 by g1879, Inc. All Rights Reserved.
 """
 from pathlib import Path
-from re import search, DOTALL
+from re import search, DOTALL, IGNORECASE
 from time import sleep
 from urllib.parse import urlparse
 
@@ -259,12 +259,9 @@ def check_headers(kwargs, headers, arg):
 def set_charset(response):
     # 在headers中获取编码
     content_type = response.headers.get('content-type', '').lower()
-    if not content_type.endswith(';'):
-        content_type += ';'
-    charset = search(r'charset[=: ]*(.*)?;?', content_type)
-
+    charset = search(r'charset\s*=\s*([^\s;]+)', content_type, IGNORECASE)
     if charset:
-        response.encoding = charset.group(1)
+        response.encoding = charset.group(1).strip('"\'')
 
     # 在headers中获取不到编码，且如果是网页
     elif content_type.replace(' ', '').startswith('text/html'):

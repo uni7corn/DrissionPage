@@ -418,7 +418,7 @@ class ChromiumOptions(object):
     def save_to_default(self):
         return self.save('default')
 
-    def remove_test_type(self):
+    def close_cross_origin(self):
         self.set_argument('--test-type', False)
         self.set_argument('--disable-site-isolation-trials', False)
         return self

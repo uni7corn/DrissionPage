@@ -27,9 +27,6 @@ from ..errors import ElementNotFoundError, LocatorError, PageDisconnectedError
 
 
 class BaseParser(object):
-    def __call__(self, locator):
-        return self.ele(locator)
-
     def ele(self, locator, index=1, timeout=None):
         return self._ele(locator, timeout, index=index, method='ele()')
 
@@ -54,7 +51,7 @@ class BaseParser(object):
     def html(self):
         return ''
 
-    def s_ele(self, locator=None):
+    def s_ele(self, locator=None, index=1):
         pass
 
     def s_eles(self, locator):

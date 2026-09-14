@@ -6,6 +6,7 @@
 @Copyright: (c) 2020 by g1879, Inc. All Rights Reserved.
 """
 from json import loads
+from math import inf
 from os.path import basename
 from pathlib import Path
 from platform import system
@@ -53,21 +54,17 @@ class ChromiumElement(DrissionElement):
         self._type = 'ChromiumElement'
         self._doc_id = None
 
-        if node_id and obj_id and backend_id:
+        if node_id:
             self._node_id = node_id
-            self._obj_id = obj_id
-            self._backend_id = backend_id
-        elif node_id:
-            self._node_id = node_id
-            self._obj_id = self._get_obj_id(node_id)
-            self._backend_id = self._get_backend_id(self._node_id)
+            self._obj_id = obj_id if obj_id else self._get_obj_id(node_id)
+            self._backend_id = backend_id if backend_id else self._get_backend_id(self._node_id)
         elif obj_id:
-            self._node_id = self._get_node_id(obj_id)
+            self._node_id = node_id if node_id else self._get_node_id(obj_id)
             self._obj_id = obj_id
-            self._backend_id = self._get_backend_id(self._node_id)
+            self._backend_id = backend_id if backend_id else self._get_backend_id(self._node_id)
         elif backend_id:
-            self._obj_id = self._get_obj_id(backend_id=backend_id)
-            self._node_id = self._get_node_id(obj_id=self._obj_id)
+            self._obj_id = obj_id if obj_id else self._get_obj_id(backend_id=backend_id)
+            self._node_id = node_id if node_id else self._get_node_id(obj_id=self._obj_id)
             self._backend_id = backend_id
         else:
             raise ElementLostError
@@ -884,8 +881,7 @@ def find_in_chromium_ele(ele, locator, index=1, timeout=None, relative=True):
 
 
 def find_by_ax(page, bid, loc, index, timeout):
-    if 'Accessibility' not in page._enabled:
-        page._enable_domain('Accessibility')
+    page._enable_domain('Accessibility')
     return wait_for_ele(do_find_ax, target=page, timeout=timeout, index=index, page=page,
                         bid=bid, args=loc, ind=index)
 
@@ -1072,11 +1068,22 @@ def make_chromium_eles(page, _ids, index=1, id_type='obj_id', ele_only=False):
         _ids = (_ids,)
 
     if index is not None:  # 获取一个
+        if not index:
+            index = 1
+        elif index < 0:
+            _ids = _ids[::-1]
+            index = abs(index)
+
+        num = 0
         if ele_only:
             for _id in _ids:
                 tmp = get_node_func(page, _id, ele_only)
-                if tmp is not None:
-                    return tmp
+                if tmp is False:
+                    return False
+                elif tmp is not None:
+                    num += 1
+                    if num == index:
+                        return tmp
             return False
 
         else:
@@ -1088,8 +1095,6 @@ def make_chromium_eles(page, _ids, index=1, id_type='obj_id', ele_only=False):
     else:  # 获取全部
         nodes = ChromiumElementsList(owner=page)
         for _id in _ids:
-            # if _id == 0:
-            #     continue
             tmp = get_node_func(page, _id, ele_only)
             if tmp is False:
                 return False
@@ -1114,7 +1119,7 @@ def _get_node_by_backend_id(page, backend_id, ele_only):
         return None if ele_only else node['node']['nodeValue']
     else:
         info = page._run_cdp('DOM.resolveNode', backendNodeId=backend_id, _ignore=True)
-        return False if 'error' in info else _make_ele(page, info['object']['objectId'], node)
+        return False if 'error' in info else make_ele(page, info['object']['objectId'], node)
 
 
 def _get_node_by_obj_id(page, obj_id, ele_only):
@@ -1125,7 +1130,7 @@ def _get_node_by_obj_id(page, obj_id, ele_only):
     if node['node']['nodeName'] in ('#text', '#comment'):
         return None if ele_only else node['node']['nodeValue']
     else:
-        return _make_ele(page, obj_id, node)
+        return make_ele(page, obj_id, node)
 
 
 def _get_node_by_node_id(page, node_id, ele_only):
@@ -1137,10 +1142,10 @@ def _get_node_by_node_id(page, node_id, ele_only):
         return None if ele_only else node['node']['nodeValue']
     else:
         info = page._run_cdp('DOM.resolveNode', nodeId=node_id, _ignore=True)
-        return False if 'error' in info else _make_ele(page, info['object']['objectId'], node)
+        return False if 'error' in info else make_ele(page, info['object']['objectId'], node)
 
 
-def _make_ele(page, obj_id, node):
+def make_ele(page, obj_id, node):
     ele = ChromiumElement(page, obj_id=obj_id, node_id=node['node']['nodeId'],
                           backend_id=node['node']['backendNodeId'])
     if ele.tag in __FRAME_ELEMENT__:
@@ -1302,16 +1307,12 @@ def parse_js_result(page, ele, result, end_time):
 def convert_argument(arg):
     if isinstance(arg, ChromiumElement):
         return {'objectId': arg._obj_id}
-
-    elif isinstance(arg, (int, float, str, bool, dict)):
-        return {'value': arg}
-
-    from math import inf
-    if arg == inf:
+    elif arg == inf:
         return {'unserializableValue': 'Infinity'}
     elif arg == -inf:
         return {'unserializableValue': '-Infinity'}
-
+    elif isinstance(arg, (int, float, str, bool, dict)):
+        return {'value': arg}
     raise TypeError(_S._lang.joinn(_S._lang.UNSUPPORTED_ARG_TYPE_, arg, type(arg)))
 
 

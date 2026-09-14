@@ -80,11 +80,11 @@ class ChromiumBase(BasePage, Messenger):
 
     def __init__(self,
                  browser: Chromium,
-                 tab_id: str,
+                 target_id: str,
                  context_id: str):
         """
         :param browser: Chromium
-        :param tab_id: 要控制的tab id，不指定默认为激活的标签页
+        :param target_id: 要控制的tab id
         :param context_id: context id
         """
         ...
@@ -102,7 +102,9 @@ class ChromiumBase(BasePage, Messenger):
         """
         ...
 
-    def _d_set_runtime_settings(self) -> None: ...
+    def _d_set_runtime_settings(self) -> None:
+        """设置d模式的设置"""
+        ...
 
     def _set_session_options(self, session_or_options: Union[Session, SessionOptions] = None) -> None:
         """

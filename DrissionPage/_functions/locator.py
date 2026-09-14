@@ -88,9 +88,9 @@ def is_str_loc(text):
 
 
 def is_selenium_loc(loc):
-    return (isinstance(loc, tuple) and len(loc) == 2 and loc[0].lower() in (
-        'id', 'xpath', 'link text', 'partial link text', 'name', 'tag name', 'class name', 'css selector')
-            and isinstance(loc[1], str))
+    return (isinstance(loc, tuple) and len(loc) == 2 and isinstance(loc[0], str) and isinstance(loc[1], str) and
+            loc[0].lower() in ('id', 'xpath', 'link text', 'partial link text', 'name', 'tag name', 'class name',
+                               'css selector'))
 
 
 def get_loc(loc, translate_css=False):
